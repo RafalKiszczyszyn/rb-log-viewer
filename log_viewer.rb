@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'time'
+require 'debug'
 
 module Support
   class IndexBuilder
@@ -141,17 +142,7 @@ module Support
 
   class LogViewer
     class << self
-      def view(source, output, after, before, force)
-        if !File.exist?(output) || force
-          Support::LogAggregator.aggregate(source, output, scope: :all, force:, index: true)
-        end
-
-        stream(output, Time.parse(after), Time.parse(before))
-      end
-
-      private
-
-      def stream(filename, after, before)
+      def view(filename, after, before)
         indexes = Dir.glob("#{filename}.index*").to_h do |file|
           start_timestamp = file.split('-')[-2].to_i
           end_timestamp = file.split('-')[-1].to_i
@@ -180,12 +171,24 @@ module Support
 end
 
 if __FILE__ == $PROGRAM_NAME
-  source, output, after, before, rebuild = ARGV
-  unless source && output && after && before
-    warn "Usage: ruby #{__FILE__} <source> <output> <after> <before> [force]"
-    exit 1
-  end
+  mode = ARGV.shift
+  if mode == 'stream'
+    logfile, after, before = ARGV
+    unless logfile && after && before
+      warn "Usage: ruby #{__FILE__} stream <logfile> <after> <before>"
+      exit 1
+    end
 
-  force = rebuild == 'rebuild'
-  Support::LogViewer.view(source, output, after, before, force)
+    Support::LogViewer.view(logfile, Time.parse(after), Time.parse(before))
+  elsif mode == 'combine'
+    source, output = ARGV
+    unless source && output
+      warn "Usage: ruby #{__FILE__} combine <source> <output>"
+      exit 1
+    end
+
+    Support::LogAggregator.aggregate(source, output, scope: :all, force: true, index: true)
+  else
+    warn "Usage: ruby #{__FILE__} combine|stream"
+  end
 end
